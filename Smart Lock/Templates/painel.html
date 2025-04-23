@@ -30,7 +30,13 @@
                         <div class="row g-3 align-items-end">
                             <div class="col-md-8">
                                 <label for="pinInput" class="form-label">Código PIN</label>
-                                <input type="text" class="form-control" id="pinInput" placeholder="Digite o novo PIN" required>
+                                <input type="text" class="form-control" id="pinInput" 
+                                       placeholder="Digite o novo PIN numérico" 
+                                       required 
+                                       minlength="5" 
+                                       pattern="\d{5,}"
+                                       oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                       title="O PIN deve ter no mínimo 5 dígitos">
                             </div>
                             <div class="col-md-4">
                                 <button type="submit" class="btn btn-primary w-100">
@@ -100,7 +106,12 @@
                         <input type="hidden" id="editPinId">
                         <div class="mb-3">
                             <label for="editPinValue" class="form-label">PIN</label>
-                            <input type="text" class="form-control" id="editPinValue" required>
+                            <input type="number" class="form-control" id="editPinValue" 
+                                required 
+                                minlength="5" 
+                                pattern="\d{5,}"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                title="O PIN deve ter no mínimo 5 dígitos numéricos">
                         </div>
                         <div class="mb-3">
                             <div class="form-check form-switch">
