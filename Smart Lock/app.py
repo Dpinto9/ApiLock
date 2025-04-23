@@ -3,7 +3,7 @@ from functools import wraps
 from config import SECRET_KEY, TOKEN_ADMIN
 import Firebase.firebase_crud as db
 from datetime import datetime
-from QRcode.qrcode_manager import QRCodeManager  # Fixed import case
+from QRcode.qrcode_manager import QRCodeManager 
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -126,13 +126,10 @@ def historico():
         log_data['id'] = log_id
         logs_list.append(log_data)
     
-    # Sort logs by date in descending order
     logs_list.sort(key=lambda x: x['data'], reverse=True)
     
     def format_datetime(timestamp):
-        # Convert string timestamp to datetime object
         dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f")
-        # Format datetime to a more readable string
         return dt.strftime("%d/%m/%Y %H:%M:%S")
     
     return render_template('historico.html', 
@@ -146,7 +143,7 @@ qr_manager = QRCodeManager()
 @login_required
 def handle_qrcode():
     if request.method == 'GET':
-        qr_manager.clean_resources()  # Clean expired QR codes
+        qr_manager.clean_resources()  
         return render_template('qrcode.html')
     
     try:
@@ -176,7 +173,7 @@ def delete_qrcode():
     if qr_manager.force_delete(qr_data):
         return jsonify({
             'success': True,
-            'reset': True  # Signal to reset the countdown
+            'reset': True 
         })
     return jsonify({'error': 'Failed to delete QR code'}), 500
 
@@ -197,8 +194,6 @@ def qrcode_status():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-
-
 
 
 if __name__ == '__main__':
