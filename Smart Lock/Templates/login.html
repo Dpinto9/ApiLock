@@ -2,14 +2,18 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>Login Admin</title>
+    <title>Área Administrativa</title>
+    <meta name="viewport" content="width=device-width initial-scale=1.0">
+    <link rel="stylesheet" href="/static/login.css">
 </head>
 <body>
-    <h1>Login de Administrador</h1>
-    <form method="POST">
-        <label for="token">Token de Acesso:</label>
-        <input type="password" name="token" id="token" required>
-        <button type="submit">Entrar</button>
-    </form>
+    <div class="login-container">
+        <h1>Área Administrativa</h1>
+        <form method="POST">
+            <label for="token">Token de Acesso</label>
+            <input type="password" name="token" id="token" placeholder="Insere o teu token" required>
+            <button type="submit">Entrar</button>
+        </form>
+    </div>
 </body>
 </html>

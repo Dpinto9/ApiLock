@@ -3,44 +3,60 @@ from firebase_admin import credentials, db
 from datetime import datetime
 from config import DATABASE_URL
 
-# Inicialização da app Firebase
+# Initialize Firebase app
 cred = credentials.Certificate("Firebase/serviceAccountKey.json")
 firebase_admin.initialize_app(cred, {
     'databaseURL': DATABASE_URL  
 })
 
-# Referência principal
-ref = db.reference('smarlock')
+# Base reference
+base_ref = db.reference('smarlock')
 
-# === FUNÇÕES DE AUTORIZAÇÃO ===
+# === AUTHORIZATION FUNCTIONS ===
 def criar_autorizacao(entrada, tipo, autorizado):
     chave = f"{tipo}_{entrada}"
-    ref = db.reference(f"autorizacoes/{chave}")
+    ref = base_ref.child(f"autorizacoes/{chave}")
     ref.set({
         "tipo": tipo,
-        "autorizado": autorizado
+        "autorizado": autorizado,
+        "entrada": entrada 
     })
 
-def atualizar_autorizacao(entrada, tipo, autorizado):
-    chave = f"{tipo}_{entrada}"
-    ref = db.reference(f"autorizacoes/{chave}")
-    ref.update({
-        "autorizado": autorizado
+def atualizar_autorizacao(entrada_original, nova_entrada, tipo, autorizado):
+    # First delete the old entry
+    chave_original = f"{tipo}_{entrada_original}"
+    base_ref.child(f"autorizacoes/{chave_original}").delete()
+    
+    # Then create new entry
+    chave_nova = f"{tipo}_{nova_entrada}"
+    base_ref.child(f"autorizacoes/{chave_nova}").set({
+        "tipo": tipo,
+        "autorizado": autorizado,
+        "entrada": nova_entrada
     })
 
 def apagar_autorizacao(entrada, tipo):
     chave = f"{tipo}_{entrada}"
-    ref = db.reference(f"autorizacoes/{chave}")
-    ref.delete()
+    base_ref.child(f"autorizacoes/{chave}").delete()
 
 def ler_autorizacoes():
-    ref = db.reference("autorizacoes")
-    return ref.get() or {}
+    ref = base_ref.child("autorizacoes")
+    autorizacoes = ref.get() or {}
+    
+    result = {}
+    for key, value in autorizacoes.items():
+        entrada = value.get("entrada", key.split("_")[1])
+        result[entrada] = {
+            "tipo": value["tipo"],
+            "autorizado": value["autorizado"]
+        }
+    return result
 
 def verificar_autorizacao(entrada, tipo):
     chave = f"{tipo}_{entrada}"
-    ref = db.reference(f"autorizacoes/{chave}")
+    ref = base_ref.child(f"autorizacoes/{chave}")
     dados = ref.get()
+    
     if dados and dados.get("autorizado"):
         registar_log(entrada, tipo, "autorizado")
         return True
@@ -48,14 +64,12 @@ def verificar_autorizacao(entrada, tipo):
         registar_log(entrada, tipo, "negado")
         return False
 
-
-
-# === FUNÇÃO PARA REGISTAR LOGS ===
+# === LOGGING FUNCTION ===
 def registar_log(entrada, tipo, resultado):
     timestamp = datetime.now().isoformat()
-    log_ref = db.reference("logs")
+    log_ref = base_ref.child("logs")
     log_ref.push({
-        "entrada": f"{tipo}_{entrada}",
+        "entrada": entrada,
         "tipo": tipo,
         "resultado": resultado,
         "data": timestamp
