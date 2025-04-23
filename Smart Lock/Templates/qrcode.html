@@ -153,7 +153,16 @@
                 if (seconds <= 0) {
                     clearInterval(countdownInterval);
                     showAlert('O QR Code expirou', 'info');
-                    resetUI();
+                    
+                    // Automatically delete the expired QR code
+                    deleteQRCode().then(() => {
+                        resetUI();
+                        // Reset progress bar
+                        const progressBar = document.getElementById('progressBar');
+                        progressBar.style.width = '100%';
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+                        progressBar.classList.remove('bg-warning', 'bg-danger');
+                    });
                 }
             }, 1000);
         }
