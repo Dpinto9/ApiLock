@@ -3,16 +3,19 @@ from functools import wraps
 from config import SECRET_KEY, TOKEN_ADMIN
 import Firebase.firebase_crud as db
 from datetime import datetime
+from QRcode.qrcode_manager import QRCodeManager  # Fixed import case
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
 # ===== DECORATOR PARA LOGIN REQUERIDO =====
+from functools import wraps
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'logado' not in session:
-            return redirect(url_for('login', next=request.url))
+            return redirect('/')
         return f(*args, **kwargs)
     return decorated_function
 
@@ -116,10 +119,8 @@ def historico():
     if 'logado' not in session:
         return redirect('/')
     
-    # Read logs from Firebase
     logs = db.ler_logs()
     
-    # Convert logs dictionary to list and sort by date (newest first)
     logs_list = []
     for log_id, log_data in logs.items():
         log_data['id'] = log_id
@@ -137,6 +138,68 @@ def historico():
     return render_template('historico.html', 
                          logs=logs_list, 
                          format_datetime=format_datetime)
+
+# ===== QRCode =====
+qr_manager = QRCodeManager()
+
+@app.route('/qrcode', methods=['GET', 'POST'])
+@login_required
+def handle_qrcode():
+    if request.method == 'GET':
+        qr_manager.clean_resources()  # Clean expired QR codes
+        return render_template('qrcode.html')
+    
+    try:
+        validity = int(request.form.get('validade', 5))
+        if not 1 <= validity <= 60:
+            return jsonify({'error': 'Validade deve ser entre 1-60 minutos'}), 400
+            
+        qr_info = qr_manager.generate_qr_code(validity)
+        return jsonify({
+            'success': True,
+            'qr_image': f'/static/temp_qr/{qr_info["qr_data"]}.png',
+            'qr_data': qr_info['qr_data'],
+            'valid_until': qr_info['valid_until']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/qrcode/delete', methods=['POST'])
+@login_required
+def delete_qrcode():
+    data = request.json
+    qr_data = data.get('qr_data')
+    
+    if not qr_data:
+        return jsonify({'error': 'QR data missing'}), 400
+        
+    if qr_manager.force_delete(qr_data):
+        return jsonify({
+            'success': True,
+            'reset': True  # Signal to reset the countdown
+        })
+    return jsonify({'error': 'Failed to delete QR code'}), 500
+
+@app.route('/qrcode/status')
+@login_required
+def qrcode_status():
+    try:
+        active_qr = qr_manager.get_active_qr()
+        if active_qr:
+            return jsonify({
+                'active': True,
+                'qr_data': active_qr['qr_data'],
+                'remaining': active_qr['remaining'],
+                'valid_until': active_qr['valid_until'],
+                'qr_image': f'/static/temp_qr/{active_qr["qr_data"]}.png'
+            })
+        return jsonify({'active': False})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
