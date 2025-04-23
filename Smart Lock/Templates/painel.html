@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smarlock Admin</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Gestão de Acessos Smarlock</h1>
+
+        <form method="POST" class="form">
+            <div class="form-group">
+                <label for="entrada">Código (PIN ou QR):</label>
+                <input type="text" id="entrada" name="entrada" placeholder="Ex: 1234 ou ABCDEF" required>
+            </div>
+
+            <div class="form-group">
+                <label for="tipo">Tipo:</label>
+                <select id="tipo" name="tipo" required>
+                    <option value="pin">PIN</option>
+                    <option value="qr">QR Code</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="autorizado">
+                    <input type="checkbox" id="autorizado" name="autorizado"> Autorizado
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn" name="acao" value="criar">Criar</button>
+                <button class="btn" name="acao" value="atualizar">Atualizar</button>
+                <button class="btn btn-danger" name="acao" value="apagar">Apagar</button>
+            </div>
+        </form>
+
+        {% if qr_code %}
+        <div class="qr-code-container">
+            <h3>QR Code Gerado:</h3>
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
+            <a href="data:image/png;base64,{{ qr_code }}" download="qrcode.png" class="btn">Download QR Code</a>
+        </div>
+        {% endif %}
+
+
+        <h2>{{ mensagem }}</h2>
+
+        <h3>Autorizações Atuais:</h3>
+        <ul class="registos">
+            {% for key, value in registos.items() %}
+                <li>
+                    <strong>{{ key }}</strong>: 
+                    Tipo: {{ value.tipo }}, 
+                    Autorizado: {{ 'Sim' if value.autorizado else 'Não' }}
+                </li>
+            {% endfor %}
+        </ul>
+
+        <form action="/logout" method="get">
+            <button class="btn btn-warning" type="submit">Logout</button>
+        </form>
+    </div>
+</body>
+</html>
