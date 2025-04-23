@@ -1,13 +1,13 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
+from config import SECRET_KEY, TOKEN_ADMIN
 import Firebase.firebase_crud as db
 import qrcode
 import base64
 from io import BytesIO
 
 app = Flask(__name__)
-app.secret_key = "smarlocksupersegredo"
+app.secret_key = SECRET_KEY
 
-TOKEN_ADMIN = "admin123"
 
 # === AUTENTICAÇÃO ===
 @app.route('/', methods=['GET', 'POST'])

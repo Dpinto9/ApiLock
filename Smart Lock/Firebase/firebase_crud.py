@@ -1,11 +1,12 @@
 import firebase_admin
 from firebase_admin import credentials, db
 from datetime import datetime
+from config import DATABASE_URL
 
 # Inicialização da app Firebase
 cred = credentials.Certificate("Firebase/serviceAccountKey.json")
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://lockin-f9e5e-default-rtdb.europe-west1.firebasedatabase.app/'  
+    'databaseURL': DATABASE_URL  
 })
 
 # Referência principal
