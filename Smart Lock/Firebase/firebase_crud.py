@@ -65,12 +65,26 @@ def verificar_autorizacao(entrada, tipo):
         return False
 
 # === LOGGING FUNCTION ===
-def registar_log(entrada, tipo, resultado):
-    timestamp = datetime.now().isoformat()
-    log_ref = base_ref.child("logs")
-    log_ref.push({
-        "entrada": entrada,
-        "tipo": tipo,
-        "resultado": resultado,
-        "data": timestamp
-    })
+def registar_log(entrada, tipo, resultado, timestamp=None):
+    try:
+        log_data = {
+            "entrada": entrada,
+            "tipo": tipo,
+            "resultado": resultado,
+            "data": timestamp if timestamp else datetime.now().isoformat()
+        }
+        ref = db.reference('smarlock/logs')
+        ref.push(log_data)
+        return True
+    except Exception as e:
+        print(f"Erro ao registrar log: {str(e)}")
+        return False
+
+def ler_logs():
+    try:
+        ref = base_ref.child('logs') 
+        logs = ref.get()
+        return logs if logs else {}
+    except Exception as e:
+        print(f"Erro ao ler logs: {e}")
+        return {}
