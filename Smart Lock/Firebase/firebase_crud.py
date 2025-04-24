@@ -97,14 +97,26 @@ def ler_configuracoes():
 
 
 # === VERIFICAR ===
-def verificar_autorizacao(entrada, tipo):
-    chave = f"{tipo}_{entrada}"
-    ref = base_ref.child(f"autorizacoes/{chave}")
-    dados = ref.get()
-    
-    if dados and dados.get("autorizado"):
-        registar_log(entrada, tipo, "autorizado")
-        return True
-    else:
-        registar_log(entrada, tipo, "negado")
+def verificar_autorizacao(entrada, tipo, registrar_log=True):
+    try:
+        if not entrada or not tipo:
+            return False
+            
+        chave = f"{tipo}_{entrada}"
+        ref = base_ref.child(f"autorizacoes/{chave}")
+        dados = ref.get()
+        
+        if dados and dados.get("autorizado"):
+            if registrar_log:
+                registar_log(entrada, tipo, "autorizado")
+            return True
+        else:
+            if registrar_log:
+                registar_log(entrada, tipo, "negado")
+            return False
+            
+    except Exception as e:
+        print(f"Erro ao verificar autorização: {str(e)}")
+        if registrar_log:
+            registar_log(entrada, tipo, "erro")
         return False

@@ -52,6 +52,8 @@
             }
         }
     </style>
+    <!-- Add this meta tag with other meta tags -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
     {% include 'nav.html' %}
@@ -210,6 +212,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify({ qr_data: currentQRData })
                 });
@@ -234,107 +237,109 @@
         }
         
 
-        // Event Listeners
-        qrForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const validity = document.getElementById('validade').value;
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ativo...';
-            
-            try {
-                const response = await fetch('/qrcode', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `validade=${validity}`
-                });
+        // Update the fetch requests in the script section 
+            // Event Listeners
+            qrForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
-                const data = await response.json();
+                const validity = document.getElementById('validade').value;
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ativo...';
                 
-                if (!response.ok) {
-                    throw new Error(data.error || 'Erro ao gerar QR Code');
-                }
-                
-                // Mostra o QR code gerado
-                document.getElementById('qrImage').src = data.qr_image;
-                qrContainer.style.display = 'block';
-                currentQRData = data.qr_data;
-                
-                // Inicia o contador
-                startCountdown(validity * 60);
-                
-                showAlert('QR Code gerado com sucesso', 'success');
-                
-            } catch (error) {
-                console.error('Error:', error);
-                showAlert('Erro: ' + error.message, 'danger');
-            } finally {
-                if (!currentQRData) {
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="fas fa-qrcode"></i> Gerar QR Code';
-                }
-            }
-        });
-        
-        document.getElementById('deleteBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            deleteQRCode();
-        });
-        
-        // Verifica se há QR code ativo ao carregar a página
-        async function checkActiveQR() {
-            try {
-                const response = await fetch('/qrcode/status');
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Error checking QR status');
-                }
-                
-                if (data.active) {
-                    // Update UI elements
+                try {
+                    const response = await fetch('/qrcode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: `validade=${validity}`
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Erro ao gerar QR Code');
+                    }
+                    
+                    // Mostra o QR code gerado
                     document.getElementById('qrImage').src = data.qr_image;
                     qrContainer.style.display = 'block';
                     currentQRData = data.qr_data;
                     
-                    // Disable generate button while QR is active
-                    generateBtn.disabled = true;
-                    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ativo...';
+                    // Inicia o contador
+                    startCountdown(validity * 60);
                     
-                    // Start countdown with remaining time
-                    startCountdown(data.remaining);
+                    showAlert('QR Code gerado com sucesso', 'success');
                     
-                    // Update progress bar initial state
-                    const validityMinutes = Math.ceil(data.remaining / 60);
-                    document.getElementById('validade').value = validityMinutes;
+                } catch (error) {
+                    console.error('Error:', error);
+                    showAlert('Erro: ' + error.message, 'danger');
+                } finally {
+                    if (!currentQRData) {
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = '<i class="fas fa-qrcode"></i> Gerar QR Code';
+                    }
+                }
+            });
+            
+            document.getElementById('deleteBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                deleteQRCode();
+            });
+            
+            // Verifica se há QR code ativo ao carregar a página
+            async function checkActiveQR() {
+                try {
+                    const response = await fetch('/qrcode/status');
+                    const data = await response.json();
                     
-                    const percent = (data.remaining / (validityMinutes * 60)) * 100;
-                    const progressBar = document.getElementById('progressBar');
-                    progressBar.style.width = `${percent}%`;
-                    
-                    // Set appropriate progress bar color based on remaining time
-                    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
-                    if (percent < 30) {
-                        progressBar.classList.add('bg-warning');
-                    } else if (percent < 15) {
-                        progressBar.classList.add('bg-danger');
-                    } else {
-                        progressBar.classList.add('bg-success');
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Error checking QR status');
                     }
                     
-                    return true;
+                    if (data.active) {
+                        // Update UI elements
+                        document.getElementById('qrImage').src = data.qr_image;
+                        qrContainer.style.display = 'block';
+                        currentQRData = data.qr_data;
+                        
+                        // Disable generate button while QR is active
+                        generateBtn.disabled = true;
+                        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ativo...';
+                        
+                        // Start countdown with remaining time
+                        startCountdown(data.remaining);
+                        
+                        // Update progress bar initial state
+                        const validityMinutes = Math.ceil(data.remaining / 60);
+                        document.getElementById('validade').value = validityMinutes;
+                        
+                        const percent = (data.remaining / (validityMinutes * 60)) * 100;
+                        const progressBar = document.getElementById('progressBar');
+                        progressBar.style.width = `${percent}%`;
+                        
+                        // Set appropriate progress bar color based on remaining time
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+                        if (percent < 30) {
+                            progressBar.classList.add('bg-warning');
+                        } else if (percent < 15) {
+                            progressBar.classList.add('bg-danger');
+                        } else {
+                            progressBar.classList.add('bg-success');
+                        }
+                        
+                        return true;
+                    }
+                    return false;
+                    
+                } catch (error) {
+                    console.error('Error checking active QR:', error);
+                    return false;
                 }
-                return false;
-                
-            } catch (error) {
-                console.error('Error checking active QR:', error);
-                return false;
             }
-        }
-        // Executa ao carregar a página
-        checkActiveQR();
-    </script>
-</body>
+            // Executa ao carregar a página
+            checkActiveQR();
+        </script>
+    </body>
 </html>

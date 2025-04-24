@@ -4,3 +4,4 @@ qrcode
 Pillow
 cryptography
 Flask-WTF
+flask_limiter

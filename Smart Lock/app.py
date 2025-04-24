@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, url_for, session
 from functools import wraps
-from config import SECRET_KEY, TOKEN_ADMIN
+from config import SECRET_KEY, TOKEN_ADMIN, API_KEY
 from datetime import datetime
 from QRcode.qrcode_manager import QRCodeManager
 from functools import wraps
@@ -18,6 +18,15 @@ def login_required(f):
         if 'logado' not in session:
             return redirect('/')
         return f(*args, **kwargs)
+    return decorated_function
+
+def require_api_key(view_function):
+    @wraps(view_function)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('X-API-KEY') or request.args.get('api_key')
+        if api_key != API_KEY:  
+            return jsonify({"error": "Acesso não autorizado"}), 401
+        return view_function(*args, **kwargs)
     return decorated_function
 
 @app.template_filter('format_datetime')
@@ -66,39 +75,55 @@ def painel():
 @app.route('/api/pins', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_pins():
-    if request.method == 'GET':
-        autorizacoes = db.ler_autorizacoes()
-        pins = [
-            {"entrada": key, "autorizado": value["autorizado"]}
-            for key, value in autorizacoes.items()
-            if value["tipo"] == "pin"
-        ]
-        return jsonify(pins)
+    try:
+        if request.method == 'GET':
+            autorizacoes = db.ler_autorizacoes()
+            pins = [
+                {"entrada": key, "autorizado": value["autorizado"]}
+                for key, value in autorizacoes.items()
+                if value["tipo"] == "pin"
+            ]
+            return jsonify({"success": True, "data": pins})
 
-    data = request.get_json()
-    
-    if request.method == 'POST':
-        pin = data.get('pin')
-        if not pin:
-            return jsonify({"error": "PIN é obrigatório"}), 400
-        db.criar_autorizacao(pin, 'pin', data.get('autorizado', True))
-        return jsonify({"success": True})
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Dados não recebidos"}), 400
 
-    elif request.method == 'PUT':
-        entrada_original = data.get('entrada_original')
-        nova_entrada = data.get('nova_entrada')
-        if not all([entrada_original, nova_entrada]):
-            return jsonify({"error": "Dados incompletos"}), 400
-        db.atualizar_autorizacao(entrada_original, nova_entrada, 'pin', data.get('autorizado', True))
-        return jsonify({"success": True})
+        if request.method == 'POST':
+            pin = data.get('pin')
+            if not pin:
+                return jsonify({"error": "PIN é obrigatório"}), 400
+                
+            db.criar_autorizacao(pin, 'pin', data.get('autorizado', True))
+            return jsonify({"success": True, "message": "PIN adicionado com sucesso"})
+        
+        elif request.method == 'PUT':
+            entrada_original = data.get('entrada_original')
+            nova_entrada = data.get('nova_entrada')
+            if not all([entrada_original, nova_entrada]):
+                return jsonify({"error": "Dados incompletos"}), 400
+                
+            db.atualizar_autorizacao(
+                entrada_original, 
+                nova_entrada, 
+                'pin', 
+                data.get('autorizado', True)
+            )
+            return jsonify({"success": True, "message": "PIN atualizado com sucesso"})
 
-    elif request.method == 'DELETE':
-        pin = data.get('pin')
-        if not pin:
-            return jsonify({"error": "PIN é obrigatório"}), 400
-        db.apagar_autorizacao(pin, 'pin')
-        return jsonify({"success": True})
+        elif request.method == 'DELETE':
+            pin = data.get('pin')
+            if not pin:
+                return jsonify({"error": "PIN é obrigatório"}), 400
+                
+            db.apagar_autorizacao(pin, 'pin')
+            return jsonify({"success": True, "message": "PIN removido com sucesso"})
 
+    except Exception as e:
+        return jsonify({
+            "error": "Erro no servidor",
+            "details": str(e)
+        }), 500
 
 # ===== HISTÓRICO DE ACESSOS =====
 @app.route('/historico')
@@ -211,9 +236,19 @@ def update_settings_api():
 
 
 
-
 # ===== API PARA O ESP32 =====
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    get_remote_address, 
+    app=app,
+    default_limits=["200 per day", "50 per hour"]
+)
+
 @app.route('/verificar', methods=['POST'])
+@limiter.limit("10 per minute")
+@require_api_key
 def verificar():
     dados = request.json
     entrada = dados.get('entrada')
@@ -222,29 +257,55 @@ def verificar():
     if not all([entrada, tipo]):
         return jsonify({"error": "Dados incompletos"}), 400
     
-    # Get current settings
-    config = db.ler_configuracoes()
+    if tipo not in ['pin', 'qr']: 
+        return jsonify({"error": "Tipo de autenticação inválido"}), 400
     
-    # Check if PINs are disabled
-    if tipo == 'pin' and not config.get('pins_ativados', True):
-        return jsonify({"autorizado": False, "motivo": "PINs desativados"})
-    
-    # Check authorization
-    autorizado = db.verificar_autorizacao(entrada, tipo)
-    
-    # If 2FA is enabled, we need both QR and PIN
-    if config.get('2fa_ativado'):
-        # This would require additional logic to track partial authentications
-        # For now, we'll just return that 2FA is required
+    try:
+        config = db.ler_configuracoes()
+        
+        # Verificar se o método está ativado
+        if tipo == 'pin' and not config.get('pin_enabled', True):
+            return jsonify({
+                "autorizado": False,
+                "motivo": "PINs desativados",
+                "tentativa_registada": True
+            })
+        
+        # Verificar autorização
+        autorizado = db.verificar_autorizacao(entrada, tipo)
+        
+        # Lógica para 2FA
+        if config.get('two_factor_enabled', False):
+            if tipo == 'pin':
+                return jsonify({
+                    "autorizado": False,
+                    "2fa_requerido": True,
+                    "passo_autenticado": "pin",
+                    "proximo_passo": "qr"  # Ou outro método
+                })
+            elif tipo == 'qr':
+                return jsonify({
+                    "autorizado": False,
+                    "2fa_requerido": True,
+                    "passo_autenticado": "qr",
+                    "proximo_passo": "pin"
+                })
+        
         return jsonify({
-            "autorizado": False,
-            "2fa_requerido": True,
-            "passo_autenticado": tipo
+            "autorizado": autorizado,
+            "tentativa_registada": True
         })
-    
-    return jsonify({"autorizado": autorizado})
+        
+    except Exception as e:
+        return jsonify({
+            "error": "Erro no servidor",
+            "detalhes": str(e)
+        }), 500
+
+
 
 @app.route('/verificar-2fa', methods=['POST'])
+@require_api_key
 def verificar_2fa():
     dados = request.json
     pin = dados.get('pin')
@@ -253,18 +314,47 @@ def verificar_2fa():
     if not all([pin, qr]):
         return jsonify({"error": "Dados incompletos"}), 400
     
-    # Verify both credentials
-    pin_ok = db.verificar_autorizacao(pin, 'pin')
-    qr_ok = db.verificar_autorizacao(qr, 'qr')
-    
-    if pin_ok and qr_ok:
-        return jsonify({"autorizado": True})
-    
-    return jsonify({"autorizado": False})
+    try:
+        # Verificar ambas as credenciais
+        pin_ok = db.verificar_autorizacao(pin, 'pin')
+        qr_ok = db.verificar_autorizacao(qr, 'qr')
+        
+        if pin_ok and qr_ok:
+            return jsonify({
+                "autorizado": True,
+                "tentativa_registada": True
+            })
+        
+        return jsonify({
+            "autorizado": False,
+            "motivo": "Credenciais 2FA inválidas",
+            "tentativa_registada": True
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": "Erro no servidor",
+            "detalhes": str(e)
+        }), 500
 
 
-
-
+# ESP VERIFICATION CONNECTION
+@app.route('/status', methods=['GET'])
+@require_api_key
+def status():
+    try:
+        # Verifica conexão com o Firebase
+        base_ref.child('status').set({'ping': datetime.now().isoformat()})
+        return jsonify({
+            "status": "online",
+            "servidor_tempo": datetime.now().isoformat(),
+            "versao_api": "1.0"
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "offline",
+            "erro": str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='painel.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
     {% include 'nav.html' %}
@@ -135,8 +136,44 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const editModal = new bootstrap.Modal(document.getElementById('editModal'));
-            
-            // Configurar botões de edição
+
+            // Função para verificar resposta HTTP
+            async function handleResponse(response) {
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Erro na requisição');
+                }
+                return response.json();
+            }
+
+            // Add new PIN
+            document.getElementById('addPinForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const pin = document.getElementById('pinInput').value;
+                
+                try {
+                    const response = await fetch('/api/pins', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            pin: pin,
+                            autorizado: true
+                        })
+                    });
+                    
+                    const data = await handleResponse(response);
+                    showAlert('PIN adicionado com sucesso!', 'success');
+                    document.getElementById('pinInput').value = '';
+                    setTimeout(() => window.location.reload(), 1000);
+                } catch (error) {
+                    showAlert(error.message, 'danger');
+                }
+            });
+
+            // Edit PIN buttons
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const pin = this.getAttribute('data-pin');
@@ -144,113 +181,70 @@
                     
                     document.getElementById('editPinId').value = pin;
                     document.getElementById('editPinValue').value = pin;
-                    document.getElementById('editPinStatus').checked = status === 'True'; 
+                    document.getElementById('editPinStatus').checked = status === 'True';
                     
                     editModal.show();
                 });
             });
 
-            // Salvar edição
-            document.getElementById('saveEditBtn').addEventListener('click', function() {
+            // Save edited PIN
+            document.getElementById('saveEditBtn').addEventListener('click', async function() {
                 const originalPin = document.getElementById('editPinId').value;
                 const newPin = document.getElementById('editPinValue').value;
                 const isActive = document.getElementById('editPinStatus').checked;
                 
-                fetch('/api/pins', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        entrada_original: originalPin,
-                        nova_entrada: newPin,
-                        tipo: 'pin',
-                        autorizado: isActive
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Erro na requisição');
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        showAlert('PIN atualizado com sucesso!', 'success');
-                        setTimeout(() => window.location.reload(), 1000);
-                    }
-                })
-                .catch(error => {
-                    showAlert(error.message, 'danger');
-                })
-                .finally(() => {
+                try {
+                    const response = await fetch('/api/pins', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            entrada_original: originalPin,
+                            nova_entrada: newPin,
+                            autorizado: isActive
+                        })
+                    });
+                    
+                    const data = await handleResponse(response);
+                    showAlert('PIN atualizado com sucesso!', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
                     editModal.hide();
-                });
+                } catch (error) {
+                    showAlert(error.message, 'danger');
+                }
             });
 
-            // Configurar botões de exclusão
+            // Delete PIN buttons
             document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', async function() {
                     const pin = this.getAttribute('data-pin');
                     if (confirm(`Tem certeza que deseja apagar o PIN ${pin}?`)) {
-                        fetch('/api/pins', {
-                            method: 'DELETE',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ 
-                                pin: pin, 
-                                tipo: 'pin' 
-                            })
-                        })
-                        .then(response => {
-                            if (!response.ok) throw new Error('Erro ao apagar PIN');
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.success) {
-                                showAlert('PIN apagado com sucesso!', 'success');
-                                setTimeout(() => window.location.reload(), 1000);
-                            }
-                        })
-                        .catch(error => {
+                        try {
+                            const response = await fetch('/api/pins', {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                body: JSON.stringify({
+                                    pin: pin
+                                })
+                            });
+                            
+                            const data = await handleResponse(response);
+                            showAlert('PIN apagado com sucesso!', 'success');
+                            setTimeout(() => window.location.reload(), 1000);
+                        } catch (error) {
                             showAlert(error.message, 'danger');
-                        });
+                        }
                     }
                 });
             });
 
-            // Adicionar novo PIN
-            document.getElementById('addPinForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const pin = document.getElementById('pinInput').value;
-                
-                fetch('/api/pins', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        pin: pin, 
-                        tipo: 'pin', 
-                        autorizado: true 
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Erro ao adicionar PIN');
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        showAlert('PIN adicionado com sucesso!', 'success');
-                        document.getElementById('pinInput').value = '';
-                        setTimeout(() => window.location.reload(), 1000);
-                    }
-                })
-                .catch(error => {
-                    showAlert(error.message, 'danger');
-                });
-            });
 
-            // Função para mostrar alerta
+            // Alert function
             function showAlert(message, type) {
                 const alertDiv = document.createElement('div');
                 alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
