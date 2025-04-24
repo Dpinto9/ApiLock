@@ -13,6 +13,7 @@
         <img src="{{ url_for('static', filename='favicon.ico') }}" alt="SmartLock" width="30" height="30" class="me-2">
         <h1>Área Administrativa</h1>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label for="token">Token de Acesso</label>
             <input type="password" name="token" id="token" placeholder="Insere o teu token" required>
             <button type="submit">Entrar</button>
