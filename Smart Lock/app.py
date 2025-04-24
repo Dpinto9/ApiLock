@@ -1,15 +1,15 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, url_for
+from flask import Flask, render_template, request, redirect, session, jsonify, url_for, session
 from functools import wraps
 from config import SECRET_KEY, TOKEN_ADMIN
-import Firebase.firebase_crud as db
 from datetime import datetime
-from QRcode.qrcode_manager import QRCodeManager 
+from QRcode.qrcode_manager import QRCodeManager
+from functools import wraps
+import Firebase.firebase_crud as db
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-
-# ===== DECORATOR PARA LOGIN REQUERIDO =====
-from functools import wraps
+csrf = CSRFProtect(app)
 
 def login_required(f):
     @wraps(f)
@@ -19,7 +19,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# ===== FILTRO PARA FORMATAR DATA =====
 @app.template_filter('format_datetime')
 def format_datetime(value):
     if not value:
@@ -30,7 +29,7 @@ def format_datetime(value):
     except ValueError:
         return value
 
-# ===== ROTAS DE AUTENTICAÇÃO =====
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if 'logado' in session:
@@ -50,6 +49,7 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+
 # ===== PAINEL PRINCIPAL =====
 @app.route('/painel')
 @login_required
@@ -62,7 +62,6 @@ def painel():
     ]
     return render_template('painel.html', pins=pins)
 
-# ===== API PARA GERENCIAMENTO DE PINS =====
 @app.route('/api/pins', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_pins():
@@ -99,6 +98,8 @@ def manage_pins():
         db.apagar_autorizacao(pin, 'pin')
         return jsonify({"success": True})
 
+
+
 # ===== API PARA O ESP32 =====
 @app.route('/verificar', methods=['POST'])
 def verificar():
@@ -109,8 +110,47 @@ def verificar():
     if not all([entrada, tipo]):
         return jsonify({"error": "Dados incompletos"}), 400
     
+    # Get current settings
+    config = db.ler_configuracoes()
+    
+    # Check if PINs are disabled
+    if tipo == 'pin' and not config.get('pins_ativados', True):
+        return jsonify({"autorizado": False, "motivo": "PINs desativados"})
+    
+    # Check authorization
     autorizado = db.verificar_autorizacao(entrada, tipo)
+    
+    # If 2FA is enabled, we need both QR and PIN
+    if config.get('2fa_ativado'):
+        # This would require additional logic to track partial authentications
+        # For now, we'll just return that 2FA is required
+        return jsonify({
+            "autorizado": False,
+            "2fa_requerido": True,
+            "passo_autenticado": tipo
+        })
+    
     return jsonify({"autorizado": autorizado})
+
+@app.route('/verificar-2fa', methods=['POST'])
+def verificar_2fa():
+    dados = request.json
+    pin = dados.get('pin')
+    qr = dados.get('qr')
+    
+    if not all([pin, qr]):
+        return jsonify({"error": "Dados incompletos"}), 400
+    
+    # Verify both credentials
+    pin_ok = db.verificar_autorizacao(pin, 'pin')
+    qr_ok = db.verificar_autorizacao(qr, 'qr')
+    
+    if pin_ok and qr_ok:
+        return jsonify({"autorizado": True})
+    
+    return jsonify({"autorizado": False})
+
+
 
 # ===== HISTÓRICO DE ACESSOS =====
 @app.route('/historico')
@@ -135,6 +175,8 @@ def historico():
     return render_template('historico.html', 
                          logs=logs_list, 
                          format_datetime=format_datetime)
+
+
 
 # ===== QRCode =====
 qr_manager = QRCodeManager()
@@ -161,6 +203,7 @@ def handle_qrcode():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+
 @app.route('/qrcode/delete', methods=['POST'])
 @login_required
 def delete_qrcode():
@@ -176,6 +219,7 @@ def delete_qrcode():
             'reset': True 
         })
     return jsonify({'error': 'Failed to delete QR code'}), 500
+
 
 @app.route('/qrcode/status')
 @login_required
@@ -193,7 +237,31 @@ def qrcode_status():
         return jsonify({'active': False})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
+
+
+# ===== DEFINICOES =====  
+@app.route('/definicoes')
+@login_required
+def definicoes():
+    settings = db.ler_configuracoes()
+    return render_template('definicoes.html', settings=settings)
+
+@app.route('/api/settings', methods=['POST'])
+@login_required
+def update_settings_api():
+    try:
+        data = request.get_json()
+        settings = {
+            'two_factor_enabled': data.get('two_factor_enabled', False),
+            'pin_enabled': data.get('pin_enabled', False)
+        }
+        
+        db.atualizar_configuracoes(settings)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 
 
 if __name__ == '__main__':

@@ -2,3 +2,5 @@ Flask
 firebase_admin
 qrcode
 Pillow
+cryptography
+Flask-WTF

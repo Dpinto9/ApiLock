@@ -9,10 +9,9 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': DATABASE_URL  
 })
 
-# Base reference
 base_ref = db.reference('smarlock')
 
-# === AUTHORIZATION FUNCTIONS ===
+# === CRUD ===
 def criar_autorizacao(entrada, tipo, autorizado):
     chave = f"{tipo}_{entrada}"
     ref = base_ref.child(f"autorizacoes/{chave}")
@@ -23,11 +22,9 @@ def criar_autorizacao(entrada, tipo, autorizado):
     })
 
 def atualizar_autorizacao(entrada_original, nova_entrada, tipo, autorizado):
-    # First delete the old entry
     chave_original = f"{tipo}_{entrada_original}"
     base_ref.child(f"autorizacoes/{chave_original}").delete()
     
-    # Then create new entry
     chave_nova = f"{tipo}_{nova_entrada}"
     base_ref.child(f"autorizacoes/{chave_nova}").set({
         "tipo": tipo,
@@ -52,19 +49,8 @@ def ler_autorizacoes():
         }
     return result
 
-def verificar_autorizacao(entrada, tipo):
-    chave = f"{tipo}_{entrada}"
-    ref = base_ref.child(f"autorizacoes/{chave}")
-    dados = ref.get()
-    
-    if dados and dados.get("autorizado"):
-        registar_log(entrada, tipo, "autorizado")
-        return True
-    else:
-        registar_log(entrada, tipo, "negado")
-        return False
 
-# === LOGGING FUNCTION ===
+# === HISTORICO ===
 def registar_log(entrada, tipo, resultado, timestamp=None):
     try:
         log_data = {
@@ -88,3 +74,37 @@ def ler_logs():
     except Exception as e:
         print(f"Erro ao ler logs: {e}")
         return {}
+
+
+# === DEFINICOES ===
+def atualizar_configuracoes(config):
+    ref = base_ref.child('settings')  
+    ref.update({
+        'two_factor_enabled': config.get('two_factor_enabled', False),
+        'pin_enabled': config.get('pin_enabled', True)
+    })
+
+def ler_configuracoes():
+    ref = base_ref.child('settings')
+    settings = ref.get() or {
+        'two_factor_enabled': False,
+        'pin_enabled': True
+    }
+    return settings
+
+
+
+
+
+# === VERIFICAR ===
+def verificar_autorizacao(entrada, tipo):
+    chave = f"{tipo}_{entrada}"
+    ref = base_ref.child(f"autorizacoes/{chave}")
+    dados = ref.get()
+    
+    if dados and dados.get("autorizado"):
+        registar_log(entrada, tipo, "autorizado")
+        return True
+    else:
+        registar_log(entrada, tipo, "negado")
+        return False
