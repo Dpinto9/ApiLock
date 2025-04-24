@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>Área Administrativa</title>
+    <title>Área Administrativa - SmartLock</title>
     <meta name="viewport" content="width=device-width initial-scale=1.0">
     <link rel="stylesheet" href="/static/login.css">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -10,6 +10,7 @@
 </head>
 <body>
     <div class="login-container">
+        <img src="{{ url_for('static', filename='favicon.ico') }}" alt="SmartLock" width="30" height="30" class="me-2">
         <h1>Área Administrativa</h1>
         <form method="POST">
             <label for="token">Token de Acesso</label>

@@ -1,8 +1,11 @@
 <nav class="sidebar">
     <div class="logo-container">
         <h2>SmartLock</h2>
+        <button class="burger-menu" id="burgerMenu">
+            <i class="fas fa-bars"></i>
+        </button>
     </div>
-    <ul class="nav-menu">
+    <ul class="nav-menu" id="navMenu">
         <li><a href="/painel" class="active"><i class="fas fa-lock"></i> Gestão de Acessos</a></li>
         <li><a href="/qrcode"><i class="fas fa-qrcode"></i> QR Code Base</a></li>
         <li><a href="/historico"><i class="fas fa-history"></i> Histórico</a></li>
@@ -16,16 +19,27 @@
 </nav>
 
 <script>
-    // Get current path from window location
+    // Active page highlight code remains the same
     const currentPath = window.location.pathname;
-    
-    // Remove any previous active classes
     document.querySelectorAll('.nav-menu a').forEach(link => {
         link.classList.remove('active');
-        
-        // Add active class if href matches current path
         if (link.getAttribute('href') === currentPath) {
             link.classList.add('active');
         }
+    });
+    
+    // Burger menu toggle functionality
+    const burgerMenu = document.getElementById('burgerMenu');
+    const sidebar = document.querySelector('.sidebar');
+    const navMenu = document.getElementById('navMenu');
+    const logoutContainer = document.querySelector('.logout-container');
+    
+    burgerMenu.addEventListener('click', () => {
+        sidebar.classList.toggle('expanded');
+        navMenu.classList.toggle('active');
+        logoutContainer.classList.toggle('active');
+        burgerMenu.innerHTML = sidebar.classList.contains('expanded') 
+            ? '<i class="fas fa-times"></i>' 
+            : '<i class="fas fa-bars"></i>';
     });
 </script>
