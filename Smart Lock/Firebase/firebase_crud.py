@@ -75,6 +75,13 @@ def ler_logs():
         print(f"Erro ao ler logs: {e}")
         return {}
 
+def limpar_logs():
+    try:
+        base_ref.child('logs').delete()
+        return True
+    except Exception as e:
+        print(f"Error clearing logs: {str(e)}")
+        return False
 
 # === DEFINICOES ===
 def atualizar_configuracoes(config):
@@ -93,7 +100,14 @@ def ler_configuracoes():
     return settings
 
 
-
+def ler_qrcode(qr_code):
+    """Read QR code data from Firebase"""
+    try:
+        qr_data = base_ref.child('qrcodes').child(qr_code).get()
+        return qr_data is not None  # Return True if QR exists, False otherwise
+    except Exception as e:
+        print(f"Error reading QR code: {str(e)}")
+        return False
 
 
 # === VERIFICAR ===

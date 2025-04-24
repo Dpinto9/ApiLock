@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Histórico - SmartLock</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -52,7 +53,12 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Registros de Acesso</h5>
-                    <span class="badge bg-primary">{{ logs|length }} registros</span>
+                    <div>
+                        <button id="clearLogs" class="btn btn-danger btn-sm badge">
+                            <i class="fas fa-trash-alt"></i> 
+                        </button>
+                        <span class="badge bg-primary ms-2">{{ logs|length }} registros</span>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -105,7 +111,6 @@
                     const dateCell = row.cells[0].textContent;
                     const resultado = row.querySelector('.badge').textContent.trim().toLowerCase();
                     
-                    // Convert date string to Date object for comparison
                     const [datePart, timePart] = dateCell.split(' ');
                     const [day, month, year] = datePart.split('/');
                     const rowDate = new Date(year, month - 1, day);
@@ -117,7 +122,7 @@
                     
                     if (dataFim.value) {
                         const endDate = new Date(dataFim.value);
-                        endDate.setHours(23, 59, 59); // Include the entire end day
+                        endDate.setHours(23, 59, 59); 
                         showRow = showRow && (rowDate <= endDate);
                     }
 
@@ -136,6 +141,36 @@
                 const counter = document.querySelector('.badge.bg-primary');
                 counter.textContent = `${visibleRows.length} registros`;
             }
+
+            document.getElementById('clearLogs').addEventListener('click', function() {
+                if (confirm('Tem certeza que deseja apagar todo o histórico? Esta ação não pode ser desfeita.')) {
+                    const headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    
+                    // Get CSRF token if available
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                    if (csrfToken) {
+                        headers['X-CSRF-Token'] = csrfToken.content;
+                    }
+
+                    fetch('/api/logs/clear', {
+                        method: 'POST',
+                        headers: headers
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erro ao limpar histórico: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        alert('Erro ao limpar histórico: ' + error);
+                    });
+                }
+            });
         });
     </script>
 </body>

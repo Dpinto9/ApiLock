@@ -149,6 +149,15 @@ def historico():
                          logs=logs_list, 
                          format_datetime=format_datetime)
 
+@app.route('/api/logs/clear', methods=['POST'])
+@login_required
+def clear_logs():
+    try:
+        db.limpar_logs()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ===== QRCode =====
 qr_manager = QRCodeManager()
@@ -247,23 +256,26 @@ limiter = Limiter(
 )
 
 @app.route('/verificar', methods=['POST'])
-@limiter.limit("10 per minute")
 @require_api_key
+@limiter.limit("10 per minute")
+@csrf.exempt
 def verificar():
-    dados = request.json
-    entrada = dados.get('entrada')
-    tipo = dados.get('tipo')
-
-    if not all([entrada, tipo]):
-        return jsonify({"error": "Dados incompletos"}), 400
-    
-    if tipo not in ['pin', 'qr']: 
-        return jsonify({"error": "Tipo de autenticação inválido"}), 400
-    
     try:
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"error": "No data received"}), 400
+            
+        entrada = dados.get('entrada')
+        tipo = dados.get('tipo')
+
+        if not all([entrada, tipo]):
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        if tipo not in ['pin', 'qr', 'rfid']:
+            return jsonify({"error": "Invalid authentication type"}), 400
+        
         config = db.ler_configuracoes()
         
-        # Verificar se o método está ativado
         if tipo == 'pin' and not config.get('pin_enabled', True):
             return jsonify({
                 "autorizado": False,
@@ -271,25 +283,20 @@ def verificar():
                 "tentativa_registada": True
             })
         
-        # Verificar autorização
-        autorizado = db.verificar_autorizacao(entrada, tipo)
+        # Special handling for QR codes
+        if tipo == 'qr':
+            autorizado = db.ler_qrcode(entrada)
+            db.registar_log(entrada, tipo, "autorizado" if autorizado else "negado")
+        else:
+            autorizado = db.verificar_autorizacao(entrada, tipo)
         
-        # Lógica para 2FA
         if config.get('two_factor_enabled', False):
-            if tipo == 'pin':
-                return jsonify({
-                    "autorizado": False,
-                    "2fa_requerido": True,
-                    "passo_autenticado": "pin",
-                    "proximo_passo": "qr"  # Ou outro método
-                })
-            elif tipo == 'qr':
-                return jsonify({
-                    "autorizado": False,
-                    "2fa_requerido": True,
-                    "passo_autenticado": "qr",
-                    "proximo_passo": "pin"
-                })
+            return jsonify({
+                "autorizado": False,
+                "2fa_requerido": True,
+                "passo_autenticado": tipo,
+                # "proximo_passo": "qr" if tipo == "pin" else "pin"
+            })
         
         return jsonify({
             "autorizado": autorizado,
@@ -297,15 +304,18 @@ def verificar():
         })
         
     except Exception as e:
+        if tipo == 'qr':
+            db.registar_log(entrada, tipo, "erro")
         return jsonify({
-            "error": "Erro no servidor",
-            "detalhes": str(e)
+            "error": "Server error",
+            "details": str(e)
         }), 500
 
 
 
 @app.route('/verificar-2fa', methods=['POST'])
 @require_api_key
+@csrf.exempt
 def verificar_2fa():
     dados = request.json
     pin = dados.get('pin')
@@ -315,16 +325,19 @@ def verificar_2fa():
         return jsonify({"error": "Dados incompletos"}), 400
     
     try:
-        # Verificar ambas as credenciais
-        pin_ok = db.verificar_autorizacao(pin, 'pin')
-        qr_ok = db.verificar_autorizacao(qr, 'qr')
+        # Verify credentials without logging individual attempts
+        pin_ok = db.verificar_autorizacao(pin, 'pin', registrar_log=False)
+        qr_ok = db.ler_qrcode(qr)
         
+        # Only log the final 2FA result
         if pin_ok and qr_ok:
+            db.registar_log(f"{pin}+{qr}", '2fa', "autorizado")
             return jsonify({
                 "autorizado": True,
                 "tentativa_registada": True
             })
         
+        db.registar_log(f"{pin}+{qr}", '2fa', "negado")
         return jsonify({
             "autorizado": False,
             "motivo": "Credenciais 2FA inválidas",
@@ -332,6 +345,7 @@ def verificar_2fa():
         })
         
     except Exception as e:
+        db.registar_log(f"{pin}+{qr}", '2fa', "erro")
         return jsonify({
             "error": "Erro no servidor",
             "detalhes": str(e)
@@ -343,7 +357,11 @@ def verificar_2fa():
 @require_api_key
 def status():
     try:
-        # Verifica conexão com o Firebase
+        # Initialize Firebase reference if not already done
+        if 'base_ref' not in globals():
+            from firebasecrud import base_ref
+        
+        # Test Firebase connection
         base_ref.child('status').set({'ping': datetime.now().isoformat()})
         return jsonify({
             "status": "online",
