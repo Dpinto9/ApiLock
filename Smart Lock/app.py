@@ -315,6 +315,7 @@ def verificar():
 
 @app.route('/verificar-2fa', methods=['POST'])
 @require_api_key
+@limiter.limit("10 per minute")
 @csrf.exempt
 def verificar_2fa():
     dados = request.json

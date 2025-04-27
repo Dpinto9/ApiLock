@@ -6,43 +6,14 @@ from bs4 import BeautifulSoup
 BASE_URL = 'http://localhost:5000'
 API_KEY = 'api123'
 TEST_PIN = "11111"
-TEST_QR = "SMARTLOCK_20250424231310"
+TEST_QR = "SMARTLOCK_20250425190043p"
 
-def get_csrf_token():
-    try:
-        response = requests.get(f"{BASE_URL}/painel")
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Try to get from meta tag first
-        meta = soup.find('meta', {'name': 'csrf-token'})
-        if meta:
-            return meta.get('content')
-            
-        # If not in meta, try to get from form input
-        input_tag = soup.find('input', {'name': 'csrf_token'})
-        if input_tag:
-            return input_tag.get('value')
-            
-        # If still not found, check cookies (might be set automatically by Flask)
-        if 'csrf_token' in response.cookies:
-            return response.cookies['csrf_token']
-            
-        print("CSRF token not found in meta tags, form inputs, or cookies")
-        return None
-    except Exception as e:
-        print(f"Failed to get CSRF token: {str(e)}")
-        return None
 
 def make_request(endpoint, data):
-    csrf_token = get_csrf_token()
-    if not csrf_token:
-        print("Could not obtain CSRF token")
-        return
-
     headers = {
         'X-API-Key': API_KEY,
         'Content-Type': 'application/json',
-        'X-CSRF-Token': csrf_token
+        
     }
 
     try:
@@ -50,18 +21,26 @@ def make_request(endpoint, data):
             f"{BASE_URL}/{endpoint}",
             headers=headers,
             json=data,
-            cookies={'csrf_token': csrf_token}
         )
+
         if response.status_code == 200:
             print(f"Test Result: {json.dumps(response.json(), indent=2)}")
         else:
             print(f"Error: Status code {response.status_code}")
             print(f"Response: {response.text}")
+
     except requests.exceptions.RequestException as e:
         print(f"Request failed: {str(e)}")
     except json.JSONDecodeError as e:
         print(f"Failed to parse response: {response.text}")
         print(f"Error: {str(e)}")
+
+def test_rate_limit():
+    print("\nTesting rate limit...")
+    for i in range(15): 
+        print(f"Request {i + 1}:")
+        make_request("verificar", {"entrada": TEST_PIN, "tipo": "pin"})
+
 
 def test_pin():
     print("\nTesting PIN verification...")
@@ -78,8 +57,9 @@ def test_2fa():
 if __name__ == "__main__":
     try:
         print("Starting basic functionality tests...")
-        # test_pin()
-        test_qr()
+        test_pin()
+        test_rate_limit()
+        # test_qr()
         # test_2fa()
         print("\nTests completed!")
     except Exception as e:
