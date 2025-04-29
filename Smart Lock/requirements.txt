@@ -4,3 +4,4 @@ flask-wtf
 flask-limiter
 beautifulsoup4
 gunicorn
+qrcode
