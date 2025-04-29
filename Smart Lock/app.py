@@ -5,6 +5,7 @@ from datetime import datetime
 from QRcode.qrcode_manager import QRCodeManager
 from functools import wraps
 import Firebase.firebase_crud as db
+import os
 from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
@@ -358,22 +359,48 @@ def verificar_2fa():
 @require_api_key
 def status():
     try:
-        # Initialize Firebase reference if not already done
-        if 'base_ref' not in globals():
-            from firebasecrud import base_ref
+        current_time = datetime.now()
         
         # Test Firebase connection
-        base_ref.child('status').set({'ping': datetime.now().isoformat()})
+        base_ref.child('status').set({
+            'ping': current_time.isoformat(),
+            'last_check': current_time.isoformat()
+        })
+        
+        # Get system settings
+        settings = db.ler_configuracoes()
+        
         return jsonify({
             "status": "online",
-            "servidor_tempo": datetime.now().isoformat(),
-            "versao_api": "1.0"
+            "servidor": {
+                "tempo": current_time.isoformat(),
+                "versao_api": "1.0",
+                "uptime": "active"
+            },
+            "configuracoes": {
+                "pin_enabled": settings.get('pin_enabled', True),
+                "two_factor_enabled": settings.get('two_factor_enabled', False)
+            },
+            "firebase": {
+                "connected": True,
+                "last_ping": current_time.isoformat()
+            }
         })
+        
     except Exception as e:
         return jsonify({
             "status": "offline",
-            "erro": str(e)
+            "servidor": {
+                "tempo": datetime.now().isoformat(),
+                "erro": str(e)
+            },
+            "firebase": {
+                "connected": False,
+                "error": str(e)
+            }
         }), 500
 
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

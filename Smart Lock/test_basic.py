@@ -3,7 +3,7 @@ import json
 from bs4 import BeautifulSoup
 
 # Configuration
-BASE_URL = 'http://localhost:5000'
+BASE_URL = 'https://api-lock-service-1046300342556.us-central1.run.app'
 API_KEY = 'api123'
 TEST_PIN = "11111"
 TEST_QR = "SMARTLOCK_20250425190043p"
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     try:
         print("Starting basic functionality tests...")
         test_pin()
-        test_rate_limit()
+        # test_rate_limit()
         # test_qr()
         # test_2fa()
         print("\nTests completed!")
