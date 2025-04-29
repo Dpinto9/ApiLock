@@ -3,7 +3,8 @@ import json
 from bs4 import BeautifulSoup
 
 # Configuration
-BASE_URL = 'https://api-lock-service-1046300342556.us-central1.run.app'
+# BASE_URL = 'https://api-lock-service-1046300342556.us-central1.run.app'
+BASE_URL = 'http://localhost:5000'
 API_KEY = 'api123'
 TEST_PIN = "11111"
 TEST_QR = "SMARTLOCK_20250425190043p"
@@ -54,10 +55,33 @@ def test_2fa():
     print("\nTesting 2FA verification...")
     make_request("verificar-2fa", {"pin": TEST_PIN, "qr": TEST_QR})
 
+def status():
+    print("\nTesting status...")
+    headers = {
+        'X-API-Key': API_KEY,  
+    }
+
+    try:
+        response = requests.get(f"{BASE_URL}/status", headers=headers, timeout=5)
+
+        if response.status_code == 200:
+            print(f"Test Result: {json.dumps(response.json(), indent=2)}")
+        else:
+            print(f"Error: Status code {response.status_code}")
+            print(f"Response: {response.text}")
+
+    except requests.exceptions.ConnectionError:
+        print("Server is offline. Unable to connect to the server.")
+    except requests.exceptions.Timeout:
+        print("Request timed out. The server did not respond in time.")
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {str(e)}")
+
 if __name__ == "__main__":
     try:
         print("Starting basic functionality tests...")
-        test_pin()
+        # test_pin()
+        status()
         # test_rate_limit()
         # test_qr()
         # test_2fa()

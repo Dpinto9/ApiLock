@@ -359,45 +359,15 @@ def verificar_2fa():
 @require_api_key
 def status():
     try:
-        current_time = datetime.now()
-        
-        # Test Firebase connection
-        base_ref.child('status').set({
-            'ping': current_time.isoformat(),
-            'last_check': current_time.isoformat()
-        })
-        
-        # Get system settings
-        settings = db.ler_configuracoes()
-        
         return jsonify({
             "status": "online",
-            "servidor": {
-                "tempo": current_time.isoformat(),
-                "versao_api": "1.0",
-                "uptime": "active"
-            },
-            "configuracoes": {
-                "pin_enabled": settings.get('pin_enabled', True),
-                "two_factor_enabled": settings.get('two_factor_enabled', False)
-            },
-            "firebase": {
-                "connected": True,
-                "last_ping": current_time.isoformat()
-            }
-        })
-        
+            "message": "ESP conectado com sucesso"
+        }), 200
     except Exception as e:
         return jsonify({
             "status": "offline",
-            "servidor": {
-                "tempo": datetime.now().isoformat(),
-                "erro": str(e)
-            },
-            "firebase": {
-                "connected": False,
-                "error": str(e)
-            }
+            "message": "Erro ao conectar",
+            "error": str(e)
         }), 500
 
 
