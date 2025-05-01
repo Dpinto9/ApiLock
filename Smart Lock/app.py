@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, url_for, session
 from functools import wraps
 from config import SECRET_KEY, TOKEN_ADMIN, API_KEY
-from datetime import datetime
+from datetime import datetime, timedelta
 from QRcode.qrcode_manager import QRCodeManager
 from functools import wraps
 import Firebase.firebase_crud as db
@@ -220,6 +220,103 @@ def qrcode_status():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ===== ANALITICA =====
+@app.route('/analitica')
+@login_required
+def analytics():
+    initial_data = {
+        'total_acessos': 0,
+        'taxa_sucesso': 0,
+        'horario_pico': '00:00',
+        'tentativas_negadas': 0,
+        'dias': [],
+        'acessos_por_dia': [],
+        'tipos_acesso': [0, 0, 0],  
+        'ultimos_acessos': []
+    }
+    return render_template('analiticas.html', **initial_data)
+
+@app.route('/analitica/dados')
+@login_required
+def get_analytics_data():
+    try:
+        logs = db.ler_logs()
+        current_time = datetime.now()
+        
+        # Initialize data structures
+        total_acessos = 0
+        acessos_autorizados = 0
+        acessos_por_hora = [0] * 24
+        acessos_por_dia = {}
+        tipos_acesso = {'pin': 0, 'qr': 0, 'outros': 0}
+        
+        # Process last 30 days
+        for log_id, log in logs.items():
+            log_date = datetime.fromisoformat(log['data'])
+            days_diff = (current_time - log_date).days
+            
+            if days_diff <= 30:
+                total_acessos += 1
+                
+                # Count authorized access
+                if log['resultado'] == 'autorizado':
+                    acessos_autorizados += 1
+                
+                # Count by type
+                tipo = log['tipo']
+                if tipo == 'pin':
+                    tipos_acesso['pin'] += 1
+                elif tipo == 'qr':
+                    tipos_acesso['qr'] += 1
+                else:
+                    tipos_acesso['outros'] += 1
+                
+                # Track hourly access
+                acessos_por_hora[log_date.hour] += 1
+                
+                # Track daily access
+                dia = log_date.strftime('%Y-%m-%d')
+                acessos_por_dia[dia] = acessos_por_dia.get(dia, 0) + 1
+        
+        # Calculate peak hour
+        hora_pico = acessos_por_hora.index(max(acessos_por_hora))
+        hora_pico_fmt = f"{hora_pico:02d}:00"
+        
+        # Calculate success rate
+        taxa_sucesso = round((acessos_autorizados / total_acessos * 100) if total_acessos > 0 else 0, 1)
+        
+        # Get last 7 days for chart
+        dias = []
+        valores = []
+        for i in range(7):
+            dia = (current_time - timedelta(days=i)).strftime('%Y-%m-%d')
+            dias.insert(0, dia)
+            valores.insert(0, acessos_por_dia.get(dia, 0))
+        
+        # Get last 10 access attempts for table
+        ultimos_acessos = []
+        sorted_logs = sorted(logs.items(), key=lambda x: x[1]['data'], reverse=True)
+        for _, log in sorted_logs[:10]:
+            ultimos_acessos.append({
+                'data': datetime.fromisoformat(log['data']).strftime('%d/%m/%Y %H:%M'),
+                'tipo': log['tipo'].upper(),
+                'status': log['resultado'],
+                'metodo': 'Normal' if log['tipo'] != '2fa' else '2FA'
+            })
+        
+        return jsonify({
+            'total_acessos': total_acessos,
+            'taxa_sucesso': taxa_sucesso,
+            'horario_pico': hora_pico_fmt,
+            'tentativas_negadas': total_acessos - acessos_autorizados,
+            'dias': dias,
+            'acessos_por_dia': valores,
+            'tipos_acesso': [tipos_acesso['pin'], tipos_acesso['qr'], tipos_acesso['outros']],
+            'ultimos_acessos': ultimos_acessos
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ===== DEFINICOES =====  
@@ -284,7 +381,7 @@ def verificar():
                 "tentativa_registada": True
             })
         
-        # Special handling for QR codes
+        # Special handling for QR codes 
         if tipo == 'qr':
             autorizado = db.ler_qrcode(entrada)
             db.registar_log(entrada, tipo, "autorizado" if autorizado else "negado")
@@ -369,6 +466,36 @@ def status():
             "message": "Erro ao conectar",
             "error": str(e)
         }), 500
+
+@app.route('/2factor/status', methods=['GET'])
+@require_api_key
+@csrf.exempt
+def check_2fa_status():
+    try:
+        config = db.ler_configuracoes()
+        two_factor_enabled = config.get('two_factor_enabled', False)
+        pin_enabled = config.get('pin_enabled', True)
+        
+        return jsonify({
+            "2fa_enabled": two_factor_enabled,
+            "pin_enabled": pin_enabled,
+            "status": {
+                "2fa": "active" if two_factor_enabled else "inactive",
+                "pin": "active" if pin_enabled else "inactive"
+            },
+        })
+    except Exception as e:
+        return jsonify({
+            "error": "Server error",
+            "details": str(e),
+            "status": {
+                "2fa": "error",
+                "pin": "error"
+            }
+        }), 500
+
+
+
 
 
 if __name__ == '__main__':
